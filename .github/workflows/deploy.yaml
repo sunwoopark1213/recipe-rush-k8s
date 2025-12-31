@@ -11,12 +11,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Setup Kubeconfig
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+    
     - name: Deploy to Kubernetes
-      uses: azure/k8s-deploy@v4
-      with:
-        manifests: |
-          frontend-deployment.yaml
-          hpa.yaml
-          ingress.yaml
-        namespace: recipe-rush
-        kubeconfig: ${{ secrets.KUBE_CONFIG }}
+      run: |
+        kubectl apply -f frontend-deployment.yaml -n recipe-rush
+        kubectl apply -f hpa.yaml -n recipe-rush
+        kubectl apply -f ingress.yaml -n recipe-rush
+        kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s

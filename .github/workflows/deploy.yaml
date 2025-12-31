@@ -1,0 +1,22 @@
+name: Recipe Rush CI/CD
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to Kubernetes
+      uses: azure/k8s-deploy@v4
+      with:
+        manifests: |
+          frontend-deployment.yaml
+          hpa.yaml
+          ingress.yaml
+        namespace: recipe-rush
+        kubeconfig: ${{ secrets.KUBE_CONFIG }}

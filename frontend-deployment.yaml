@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recipe-rush-frontend
+  namespace: recipe-rush
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: recipe-rush-frontend
+  template:
+    metadata:
+      labels:
+        app: recipe-rush-frontend
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      initContainers:
+      - name: init-healthcheck
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Checking backend service..."
+          until nslookup backend-service.recipe-rush.svc.cluster.local; do
+            echo "waiting for backend-service...";
+            sleep 2;
+          done;
+          echo "Backend service ready!";
+      containers:
+      - name: frontend
+        image: sun1213/recipe-rush-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+        - name: conf
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      - name: log-collector
+        image: busybox:1.35
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          while true; do
+            echo "$(date): Frontend logs check"
+            ls -la /shared-logs/ 2>/dev/null || echo "No logs yet"
+            sleep 60
+          done
+        volumeMounts:
+        - name: shared-logs
+          mountPath: /shared-logs
+      volumes:
+      - name: html
+        hostPath:
+          path: /home/sun
+          type: Directory
+      - name: conf
+        configMap:
+          name: nginx-conf
+      - name: shared-logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: recipe-rush
+data:
+  default.conf: |
+    server {
+      listen 80;
+      root /usr/share/nginx/html;
+      index index.html;
+      
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+      
+      location /api/ {
+        proxy_pass http://backend-service.recipe-rush.svc.cluster.local:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+      
+      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: recipe-rush
+spec:
+  selector:
+    app: recipe-rush-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-external
+  namespace: recipe-rush
+spec:
+  selector:
+    app: recipe-rush-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30082
+  type: LoadBalancer

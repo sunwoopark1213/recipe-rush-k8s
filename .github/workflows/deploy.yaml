@@ -24,7 +24,12 @@ jobs:
     - name: Deploy to Kubernetes
       run: |
         kubectl cluster-info
-        kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false
+        kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false --server-side
         kubectl apply -f hpa.yaml -n recipe-rush --validate=false
         kubectl apply -f ingress.yaml -n recipe-rush --validate=false
         kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s || true
+        
+    - name: Verify Deployment
+      run: |
+        kubectl get pods -n recipe-rush -l app=frontend
+        kubectl get ingress -n recipe-rush

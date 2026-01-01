@@ -1,28 +1,28 @@
-name: Recipe Rush CI/CD
+name: Recipe Rush CI/CD - Debug
 on:
   push:
     branches: [ main ]
 
 jobs:
-  deploy:
+  debug:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
+    - name: List files
+      run: ls -la
+      
     - name: Install kubectl
       run: |
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
     
+    - name: Test kubectl
+      run: kubectl version --client
+      
     - name: Setup Kubeconfig
       run: |
         mkdir -p ~/.kube
         echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
-    
-    - name: Deploy to Kubernetes
-      run: |
-        kubectl apply -f frontend-deployment.yaml -n recipe-rush
-        kubectl apply -f hpa.yaml -n recipe-rush
-        kubectl apply -f ingress.yaml -n recipe-rush
-        kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s
+        kubectl cluster-info

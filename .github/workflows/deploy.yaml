@@ -23,7 +23,6 @@ jobs:
         mkdir -p ~/.kube
         echo "$KUBE_CONFIG" > ~/.kube/config
         chmod 600 ~/.kube/config
-        kubectl config view --minify --output 'yaml' | head -20
     
     - name: Test Cluster Connection
       run: |

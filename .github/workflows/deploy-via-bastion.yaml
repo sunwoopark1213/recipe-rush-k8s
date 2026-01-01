@@ -1,4 +1,4 @@
-name: Recipe Rush CI/CD via Bastion
+name: Recipe Rush CI/CD via Bastion [web:21]
 
 on:
   push:
@@ -6,19 +6,27 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest [web:21]
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Deploy via Bastion SSH
-      uses: appleboy/ssh-action@v1.0.3
+    - uses: actions/checkout@v4 [web:21]
+
+    - name: Deploy via Bastion SSH [web:21]
+      uses: appleboy/ssh-action@v1.0.3 [web:21]
       with:
-        host: ${{ secrets.BASTION_IP }}
-        username: ${{ secrets.BASTION_USER }}
-        key: ${{ secrets.BASTION_SSH_KEY }}
-        port: 22
-        timeout: 30s
-        command_timeout: 10m
+        host: ${{ secrets.BASTION_IP }} [web:21]
+        username: ${{ secrets.BASTION_USER }} [web:21]
+        key: ${{ secrets.BASTION_SSH_KEY }} [web:21]
+        port: 22 [web:21]
+        timeout: 60s [web:21]
+        command_timeout: 15m [web:21]
         script: |
-          ssh -o ConnectTimeout=10 sun@172.16.245.7 "cd ~/workspace/recipe-rush && 
-          git pull origin main && kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false || true"
+          ssh -o ConnectTimeout=10 sun@172.16.245.7 "
+            cd ~/workspace/recipe-rush &&
+            git pull origin main &&
+            kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false || true &&
+            kubectl apply -f hpa.yaml -n recipe-rush --validate=false || true &&
+            kubectl apply -f ingress.yaml -n recipe-rush --validate=false || true &&
+            kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s || true &&
+            kubectl get pods,deployments,hpa,ingress,svc -n recipe-rush &&
+            echo '🚀 Recipe Rush Deployed via Bastion Successfully!'
+          " [web:21][web:23]

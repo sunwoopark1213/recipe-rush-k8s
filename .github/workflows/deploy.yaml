@@ -1,4 +1,5 @@
-name: Recipe Rush CI/CD
+name: Recipe Rush CI/CD via Bastion
+
 on:
   push:
     branches: [ main ]
@@ -9,34 +10,23 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install kubectl
-      run: |
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
-        kubectl version --client
-    
-    - name: Setup Kubeconfig
-      env:
-        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      run: |
-        mkdir -p ~/.kube
-        echo "$KUBE_CONFIG" > ~/.kube/config
-        chmod 600 ~/.kube/config
-    
-    - name: Test Cluster Connection
-      run: |
-        kubectl version
-        kubectl get nodes -o wide
-    
-    - name: Deploy to Kubernetes
-      run: |
-        kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false --server-side || true
-        kubectl apply -f hpa.yaml -n recipe-rush --validate=false || true
-        kubectl apply -f ingress.yaml -n recipe-rush --validate=false || true
-        kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s || true
-        
-    - name: Verify Deployment
-      run: |
-        kubectl get pods,deployments,hpa,ingress,svc -n recipe-rush
-        echo "🚀 Recipe Rush Deployed Successfully!"
+    - name: Deploy via Bastion SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.BASTION_IP }}
+        username: ${{ secrets.BASTION_USER }}
+        key: ${{ secrets.BASTION_SSH_KEY }}
+        port: 22
+        timeout: 30s
+        command_timeout: 10m
+        script: |
+          ssh sun@172.16.245.7 "
+            cd ~/workspace/recipe-rush
+            git pull origin main
+            kubectl apply -f frontend-deployment.yaml -n recipe-rush --validate=false || true
+            kubectl apply -f hpa.yaml -n recipe-rush --validate=false || true
+            kubectl apply -f ingress.yaml -n recipe-rush --validate=false || true
+            kubectl rollout status deployment/recipe-rush-frontend -n recipe-rush --timeout=300s || true
+            kubectl get pods,deployments,hpa,ingress,svc -n recipe-rush
+            echo '🚀 Recipe Rush Deployed via Bastion Successfully!'
+          "
